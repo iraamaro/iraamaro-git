@@ -1,0 +1,142 @@
+#!/usr/bin/env perl
+
+# Send key for git
+
+use strict;         #complain when a variable is used before declaration
+use warnings;       #output run-time warnings to catch bugs early
+use diagnostics;    #verbose warnings, consumes memory so disable in production
+use autodie;    #functions throw exception on failure instead of returning false
+use utf8;       #enable UTF-8 in source code
+use open qw(:std :utf8);    #set default encoding of filehandles to UTF-8
+
+# Const SET
+use constant COMMAND_PRINT_SIGNAL  => '------> ';
+use constant COMMAND_SIGNAL_COLOR  => 'bright_green';
+use constant COMMAND_SUCCESS_COLOR => 'bright_green';
+use constant COMMAND_ERROR_COLOR   => 'bright_red';
+use constant COMMAND_OUTPUT_COLOR  => 'bold blue';
+use constant BANNER_OUTPUT_COLOR   => 'bold cyan';
+
+use File::Path qw(make_path remove_tree);
+use Term::ANSIColor;
+use File::Spec;	#enable File::Spec for catch ENV
+
+# Global ENV $HOME
+my $home = File::Spec->catfile ( $ENV{HOME} , '.ssh/id_rsa_git' );
+
+sub print_output {
+  my $output = shift;
+
+  print color(COMMAND_OUTPUT_COLOR);
+  print "$output";
+  print color('reset');
+
+  return;
+}
+
+sub print_success {
+  my $text = shift;
+
+  print color(COMMAND_SUCCESS_COLOR);
+  print "$text\n";
+  print color('reset');
+
+  return;
+}
+
+sub print_error {
+  my $text = shift;
+
+  print color(COMMAND_ERROR_COLOR);
+  print "$text\n";
+  print color('reset');
+
+  return;
+}
+
+sub header {
+  my $text = shift;
+
+  my $banner = q{-} x length($text);
+
+  print "\n";
+  print color(BANNER_OUTPUT_COLOR);
+  print "$banner\n";
+  print "$text\n";
+  print "$banner\n";
+  print color('reset');
+
+  return;
+}
+
+sub print_command_signal {
+  print color(COMMAND_SIGNAL_COLOR);
+  print COMMAND_PRINT_SIGNAL;
+  print color('reset');
+
+  return;
+}
+
+sub print_command {
+  my @command = @_;
+
+  print_command_signal();
+  print_output( join( ' ', @command ) . "\n" );
+
+  return;
+}
+
+sub run_command {
+  my @command = @_;
+
+  print_command(@command);
+  system(@command) == 0 or die "system @command failed: $?";
+
+  return;
+}
+
+# Eval mount
+sub env_load_eval {
+	my @command = ( 'eval "$(ssh-agent -s)"' );
+	run_command(@command);
+
+	return;
+}
+
+# Mount ssh agent
+sub ssh_mount {
+	my @command = ( 'ssh-add', $home);
+	run_command(@command);
+
+	return;
+}
+
+sub verify_successful_load {
+  my $command = 'ssh-add -L';
+  my $list = qx($command);
+  if ($list) {
+    print "\n";
+    print_success("Success! Key loaded like $list\n");
+  }
+  else {
+    print_error(
+      "Key do not loaded $command\n");
+  }
+
+  return;
+}
+
+sub run {
+	header('Eval Setup');
+	env_load_eval();	
+	
+	header('SSH Key Load');
+	ssh_mount();
+
+	return;
+}
+
+run();
+verify_successful_load();
+
+1;
